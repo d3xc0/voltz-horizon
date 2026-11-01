@@ -10,15 +10,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / "content" / "voltz"
 NS = "voltz"
-EXCLUDE = {
-    # Atomic Science, MFFS: licences still being checked
-    "chemical_extractor", "centrifuge", "fission_reactor", "uranium_ore", "deepslate_uranium_ore", "yellow_cake",
-    "uranium_238", "uranium_235", "empty_cell", "water_cell", "fissile_fuel_cell", "toxic_waste",
-    "force_field_projector", "force_field", "cube_module", "sphere_module", "wall_module", "tube_module", "scale_module",
-    # Railcraft (all rights reserved)
-    "coke_oven", "blast_furnace", "coal_coke",
-}
-RENAME = {"crusher": "Crusher", "mfe": "Energy Storage Unit", "mfsu": "Large Energy Storage Unit"}
+# Nothing is held back any more: everything in the public build is our own
+# work (new code, drawn art, generic names). Brand-specific names are renamed.
+EXCLUDE: set = set()
+RENAME = {"crusher": "Crusher", "mfe": "Energy Storage Unit", "mfsu": "Large Energy Storage Unit",
+          "fission_reactor": "Fission Reactor Cell"}
 
 
 def main():
@@ -56,8 +52,11 @@ def main():
         for k in (f"block.{NS}.{iid}", f"item.{NS}.{iid}"):
             if k in lang:
                 lang[k] = name
-    if f"itemGroup.{NS}.industrialcraft" in lang:
-        lang[f"itemGroup.{NS}.industrialcraft"] = "Voltz Power"
+    # Tabs are named for what they hold, not for the mods that inspired them.
+    for tab, title in {"industrialcraft": "Voltz Industrial", "railcraft": "Voltz Railworks",
+                       "atomicscience": "Voltz Atomics", "mffs": "Voltz Force Fields"}.items():
+        if f"itemGroup.{NS}.{tab}" in lang:
+            lang[f"itemGroup.{NS}.{tab}"] = title
     lang_p.write_text(json.dumps(lang, indent=2) + "\n")
     tags = ROOT / "data" / "minecraft" / "tags" / "block"
     for p in tags.rglob("*.json"):

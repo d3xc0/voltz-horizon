@@ -814,4 +814,5 @@ def main():
     print("wrote", sum(1 for _ in ROOT.rglob("*") if _.is_file()), "files to", ROOT)
 
 
-main()
+if __name__ == "__main__":
+    main()

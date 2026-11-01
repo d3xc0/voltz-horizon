@@ -17,6 +17,12 @@ original mods, their authors and licences. Not affiliated with Mojang, Microsoft
 | BuildCraft | wooden / cobblestone / stone / gold item pipes, quarry |
 | Applied Energistics 2 | ME controller, drives + storage cells, terminal (a chest menu of everything stored), cable, import bus |
 | Iron Chests | copper, iron, gold, diamond, crystal, obsidian chests |
+| Voltz Industrial (our own, inspired by IndustrialCraft 2) | induction furnace, recycler, metal former, plates, scrap, and a 9x6 grid nuclear reactor with fuel rods, vents, heat exchangers, coolant cells, condensers, plating and reflectors |
+| Voltz Railworks (our own, inspired by Railcraft) | coke oven, blast furnace (steel), rolling machine |
+| Voltz Atomics (our own, inspired by Atomic Science) | uranium ore, chemical extractor, centrifuge, fission reactor cell |
+| Voltz Force Fields (our own, inspired by MFFS) | force field projector with cube, sphere, wall and tube modules |
+| ICBM Classic | missiles, missile launcher, target designator |
+| Voltz Turrets / Arms (our own, inspired by Open Modular Turrets and Techguns) | machine gun, incendiary, laser and rocket turrets; pistol, assault rifle, minigun, rocket launcher and ammo |
 
 Two parts, both needed:
 
@@ -29,7 +35,7 @@ Two parts, both needed:
 ## Build
 
 ```sh
-python3 tools/gen_content.py && python3 tools/public_filter.py     # content/voltz
+python3 tools/gen_content.py && python3 tools/gen_originals.py && python3 tools/public_filter.py   # content/voltz
 python3 tools/gen_engine_module.py                                  # native/voltz_core/voltz_engine.rs
 cargo test --manifest-path native/voltz_core/engine/Cargo.toml       # engine tests
 cargo horizon-mod build content/voltz                                # voltz.hmod
@@ -44,6 +50,9 @@ the Horizon launcher (`horizon-launcher native-build`).
 - Every machine opens a furnace menu: input on top, fuel or second ingredient in the middle, output on the right; the
   flame shows stored energy, the arrow progress.
 - Explosives go off 4 seconds after a redstone signal. The ME terminal opens with a right click.
+- Missiles: right-click a target block with the Target Designator, then open the launcher (it takes your target), put a
+  missile in its first slot and give it a redstone signal.
+- The nuclear reactor runs while it has a redstone signal; keep its heat down with vents and exchangers or it melts down.
 - New ores (osmium, cobalt, ardite) appear in chunks generated after the mod is installed.
 
 ## Licence
