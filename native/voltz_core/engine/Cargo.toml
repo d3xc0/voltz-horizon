@@ -1,0 +1,8 @@
+[package]
+name = "voltz_core_engine"
+version = "0.1.0"
+edition = "2021"
+description = "Voltz Core for Horizon: the energy network and machine logic, with no game types"
+license = "MIT"
+
+[dependencies]
