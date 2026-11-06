@@ -704,7 +704,7 @@ def main():
         shutil.rmtree(ROOT)
     (ROOT).mkdir(parents=True)
     (ROOT / "horizon-mod.toml").write_text(
-        'id = "voltz"\nname = "Voltz Core"\nversion = "0.1.0"\n'
+        'id = "voltz"\nname = "Voltz Core"\nversion = "0.3.0"\n'
         'description = "Voltz remade for Horizon: power, wires, generators and machines (content half; pair with the voltz_core native mod)"\n'
         'authors = ["Arthur Black"]\napi = "0.2"\nside = "both"\ncapabilities = ["registries"]\n')
     textures()

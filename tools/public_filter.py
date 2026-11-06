@@ -53,10 +53,17 @@ def main():
             if k in lang:
                 lang[k] = name
     # Tabs are named for what they hold, not for the mods that inspired them.
-    for tab, title in {"industrialcraft": "Voltz Industrial", "railcraft": "Voltz Railworks",
-                       "atomicscience": "Voltz Atomics", "mffs": "Voltz Force Fields"}.items():
-        if f"itemGroup.{NS}.{tab}" in lang:
-            lang[f"itemGroup.{NS}.{tab}"] = title
+    for tab, new, title in [("industrialcraft", "industrial", "Voltz Industrial"), ("railcraft", "railworks", "Voltz Railworks"),
+                            ("atomicscience", "atomics", "Voltz Atomics"), ("mffs", "force_fields", "Voltz Force Fields"),
+                            ("openmodularturrets", "turrets", "Voltz Turrets"), ("techguns", "arms", "Voltz Arms")]:
+        lang.pop(f"itemGroup.{NS}.{tab}", None)
+        lang[f"itemGroup.{NS}.{new}"] = title
+        p = ROOT / "data" / NS / "horizon" / "creative_tab" / f"{tab}.json"
+        if p.exists():
+            d = json.loads(p.read_text())
+            d["title"] = f"itemGroup.{NS}.{new}"
+            p.with_name(f"{new}.json").write_text(json.dumps(d, indent=2) + "\n")
+            p.unlink()
     lang_p.write_text(json.dumps(lang, indent=2) + "\n")
     tags = ROOT / "data" / "minecraft" / "tags" / "block"
     for p in tags.rglob("*.json"):

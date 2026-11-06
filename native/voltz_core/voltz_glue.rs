@@ -22,8 +22,7 @@ use std::collections::HashMap;
 use horizon_core::geometry::Direction;
 
 use super::Game;
-use super::explosion::BlockInteraction;
-use horizon_core::position::BlockPos;
+use super::native_explosions::NativeBlast;
 use horizon_world::registry::BlockStateId;
 
 pub(super) fn block_entity(block: &str, entity: &mut Option<(String, Compound)>) {
@@ -247,17 +246,23 @@ pub(super) fn tick(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEnti
     save(&mut entity.nbt, &state);
 }
 
+/// Whether a redstone signal reaches the block at `pos`.
+fn signalled(game: &mut Game<'_>, pos: [i32; 3]) -> bool {
+    let dimension = game.dim.id().to_string();
+    game.native_neighbor_signal(&dimension, pos) > 0
+}
+
 fn open_sky(game: &Game<'_>, pos: [i32; 3]) -> bool {
-    game.world.light(pos[0], pos[1] + 1, pos[2]) >> 4 == 15
+    game.native_light([pos[0], pos[1] + 1, pos[2]]).1 == 15
 }
 
 /// Open sky straight above, daytime, no rain, in the overworld.
 fn sunlit(game: &Game<'_>, pos: [i32; 3]) -> bool {
-    let time = game.world.day_time.rem_euclid(24_000);
+    let time = game.native_day_time().rem_euclid(24_000);
     game.dim.id() == "minecraft:overworld"
-        && game.world.weather.levels(1.0).0 <= 0.2
+        && game.native_weather().0 <= 0.2
         && (time < 12_300 || time > 23_850)
-        && game.world.light(pos[0], pos[1] + 1, pos[2]) >> 4 == 15
+        && open_sky(game, pos)
 }
 
 /// Offers `offer` joules to the machines the wire reaches from `pos`;
@@ -319,10 +324,7 @@ fn explosive_tick(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntit
         Some(Tag::Int(f)) => *f,
         _ => 0,
     };
-    let powered = fuse == 0 && {
-        let at = BlockPos::new(pos[0], pos[1], pos[2]);
-        game.with_level(|b, level, ticks| b.has_neighbor_signal(level, ticks, at))
-    };
+    let powered = fuse == 0 && signalled(game, pos);
     let (fuse, boom) = explosives::tick(fuse, powered);
     entity.nbt.insert(JavaString::from("fuse"), Tag::Int(fuse));
     if fuse > 0 && game.native_block_property(pos, "lit").is_some_and(|v| v != "true") {
@@ -338,11 +340,11 @@ fn detonate(game: &mut Game<'_>, pos: [i32; 3], blast: Blast) {
     let dimension = game.dim.id().to_string();
     let air = game.pack.assets.registry.default_state("minecraft:air").unwrap_or(BlockStateId(0));
     game.native_set_block(&dimension, pos, air, super::native_hooks::flags::UPDATE_ALL);
-    let interaction = if blast.breaks_blocks { BlockInteraction::DestroyWithDecay } else { BlockInteraction::Keep };
+    let kind = if blast.breaks_blocks { NativeBlast::Tnt } else { NativeBlast::Keep };
     if blast.radius > 0.0 {
         for d in 0..blast.depth.max(1) {
             let center = [pos[0] as f64 + 0.5, pos[1] as f64 + 0.5 - d as f64, pos[2] as f64 + 0.5];
-            let _ = game.server_explode(center, blast.radius, interaction, blast.fire);
+            game.native_explode(&dimension, center, blast.radius, blast.fire, kind);
         }
     }
     if blast.after == After::Emp {
@@ -464,8 +466,7 @@ fn project(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, stat
     let shape = entity.items.get(INPUT).and_then(|s| s.as_ref()).and_then(|s| Shape::of_module(&s.item));
     let scale = entity.items.get(FUEL).and_then(|s| s.as_ref()).filter(|s| &*s.item == forcefield::SCALE_MODULE).map_or(0, |s| s.count);
     let radius = forcefield::radius(scale);
-    let at = BlockPos::new(pos[0], pos[1], pos[2]);
-    let powered = game.with_level(|b, level, ticks| b.has_neighbor_signal(level, ticks, at));
+    let powered = signalled(game, pos);
     let field = game.pack.assets.registry.default_state(forcefield::FIELD);
     let air = game.pack.assets.registry.default_state("minecraft:air").unwrap_or(BlockStateId(0));
     let dimension = game.dim.id().to_string();
@@ -578,7 +579,7 @@ fn quarry(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, state
     if t < buildcraft::QUARRY_TICKS || state.energy < buildcraft::QUARRY_JOULES {
         return;
     }
-    let bottom = game.world.shape.min_y;
+    let bottom = game.native_world_height().0;
     let dimension = game.dim.id().to_string();
     let air = game.pack.assets.registry.default_state("minecraft:air").unwrap_or(BlockStateId(0));
     let mut cursor = nbt_int(&entity.nbt, "cursor");
@@ -587,7 +588,7 @@ fn quarry(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, state
         let radius = buildcraft::quarry_radius(&entity.id);
         let Some(p) = buildcraft::quarry_target_r(pos, cursor, bottom, radius) else { break };
         let block = game.native_block(p);
-        let max = if buildcraft::quarry_skips(&block) { None } else { game.res.items().get(&block).map(|i| i.max_stack) };
+        let max = if buildcraft::quarry_skips(&block) { None } else { game.native_max_stack_size(&block) };
         let Some(max) = max else {
             cursor += 1;
             continue;
@@ -694,7 +695,7 @@ fn terminal_items(game: &Game<'_>, stores: &[Store], online: bool, page: usize) 
     if online {
         let list = ae2::listing(stores);
         for (i, (id, n)) in list.iter().skip(page * ae2::PAGE).take(ae2::PAGE).enumerate() {
-            let max = game.res.items().get(id).map_or(64, |i| i.max_stack) as u64;
+            let max = game.native_max_stack_size(id).unwrap_or(64) as u64;
             items[i] = Some(new_stack(id, (*n).min(max).max(1) as u32));
         }
         items[ae2::PREV_SLOT as usize] = button("minecraft:arrow", 1);
@@ -745,7 +746,7 @@ pub(super) fn menu_clicked(game: &mut Game<'_>, uuid: u128, slot: i32, button_id
     } else if (0..ae2::PAGE as i32).contains(&slot) {
         // Take: a left click a stack, a right click one.
         if let Some((id, _)) = list.get(page * ae2::PAGE + slot as usize) {
-            let max = game.res.items().get(id).map_or(64, |i| i.max_stack) as u64;
+            let max = game.native_max_stack_size(id).unwrap_or(64) as u64;
             let want = if button_id == 1 { 1 } else { max };
             let got = ae2::take(&mut stores, id, want);
             if got > 0 {
@@ -823,8 +824,7 @@ fn import_tick(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity) 
 /// (`ic2reactor::step`), and every tick add the energy that second makes.
 /// Returns true when it melts down.
 fn reactor(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, state: &mut State) -> bool {
-    let at = BlockPos::new(pos[0], pos[1], pos[2]);
-    let powered = game.with_level(|b, level, ticks| b.has_neighbor_signal(level, ticks, at));
+    let powered = signalled(game, pos);
     if !powered {
         entity.nbt.insert(JavaString::from("eu"), Tag::Int(0));
         return false;
@@ -956,8 +956,7 @@ fn launcher_tick(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity
     if entity.items.len() < 5 {
         entity.items.resize(5, None);
     }
-    let at = BlockPos::new(pos[0], pos[1], pos[2]);
-    let powered = game.with_level(|b, level, ticks| b.has_neighbor_signal(level, ticks, at));
+    let powered = signalled(game, pos);
     let was = nbt_int(&entity.nbt, "powered") == 1;
     entity.nbt.insert(JavaString::from("powered"), Tag::Int(powered as i32));
     if !powered || was || nbt_int(&entity.nbt, "armed") != 1 {
@@ -1016,10 +1015,11 @@ fn fly_missiles(game: &mut Game<'_>, dimension: &str) {
     }
     for (to, warhead) in landed {
         let Some(blast) = explosives::blast(warhead) else { continue };
-        let interaction = if blast.breaks_blocks { BlockInteraction::DestroyWithDecay } else { BlockInteraction::Keep };
+        let kind = if blast.breaks_blocks { NativeBlast::Tnt } else { NativeBlast::Keep };
+        let dimension = game.dim.id().to_string();
         if blast.radius > 0.0 {
             for d in 0..blast.depth.max(1) {
-                let _ = game.server_explode([to[0], to[1] - d as f64, to[2]], blast.radius, interaction, blast.fire);
+                game.native_explode(&dimension, [to[0], to[1] - d as f64, to[2]], blast.radius, blast.fire, kind);
             }
         }
         let at = [to[0].floor() as i32, to[1].floor() as i32, to[2].floor() as i32];

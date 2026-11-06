@@ -1,11 +1,11 @@
 [mod]
 id = "voltz_core"
-version = "0.1.0"
+version = "0.3.0"
 priority = 100
 
-# Uses only Horizon's native hook points (hooks 45 in compatibility.json); tested on this commit of main.
+# Tested on this Nightly's commit.
 [compatibility]
-horizon_revision = "13e02505624fb200a76c938b948dceb45e36ded6"
+horizon_revision = "66f3981f522b24c250b21523a70080965b940424"
 
 [[module]]
 id = "glue"

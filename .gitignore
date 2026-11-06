@@ -1,4 +1,3 @@
 target/
 Cargo.lock
 content/
-__pycache__/
